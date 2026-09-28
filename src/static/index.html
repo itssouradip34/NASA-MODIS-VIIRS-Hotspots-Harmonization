@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PYRO-HARMONY | NASA MODIS & VIIRS Fire Hotspots Harmonization</title>
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  
+  <!-- Custom Design System -->
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <!-- Top Operational Mission Bar -->
+  <header class="top-header">
+    <div class="header-container">
+      <div class="brand-wrapper">
+        <div class="brand-logo-icon">🔥</div>
+        <div class="brand-titles">
+          <h1>
+            PYRO-HARMONY
+            <span class="challenge-badge">NASA Space Apps 2026</span>
+          </h1>
+          <p>Multi-Decadal Harmonization of MODIS & VIIRS Hotspots &bull; Burning Activity Calendar</p>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <div class="region-select-wrap">
+          <label for="regionSelect">Area of Interest:</label>
+          <select id="regionSelect">
+            <option value="california" selected>California (Western US Wildfires)</option>
+            <option value="amazon">Amazon Basin & Pantanal (South America)</option>
+            <option value="australia">Southeastern Australia (Bushfires)</option>
+            <option value="punjab_crop">Punjab & Haryana (Crop Residue Burning)</option>
+            <option value="mediterranean">Mediterranean Basin (Southern Europe)</option>
+          </select>
+        </div>
+
+        <button id="btnLiveFirms" class="btn btn-outline" title="Fetch live 24h hotspots from NASA FIRMS">
+          <span>📡</span> Live FIRMS (24h)
+        </button>
+
+        <button id="btnGenerateReport" class="btn btn-primary">
+          <span>📋</span> Commander Briefing
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Operational Workspace -->
+  <main class="main-wrapper">
+
+    <!-- KPI Barometer Grid -->
+    <section class="kpi-grid">
+      <div class="kpi-card accent-fire">
+        <div class="kpi-header">
+          <span class="kpi-title">Harmonized Fire Intensity (HFII)</span>
+          <span class="kpi-icon">⚡</span>
+        </div>
+        <div class="kpi-value" id="kpiHfii">--</div>
+        <div class="kpi-subtext">Sensor-invariant cumulative fire radiative energy</div>
+      </div>
+
+      <div class="kpi-card accent-cyan">
+        <div class="kpi-header">
+          <span class="kpi-title">Equivalent Standard Pixels</span>
+          <span class="kpi-icon">🛰️</span>
+        </div>
+        <div class="kpi-value" id="kpiEsfp">--</div>
+        <div class="kpi-subtext">Normalized nadir-equivalent footprint count (ESFP)</div>
+      </div>
+
+      <div class="kpi-card accent-rose">
+        <div class="kpi-header">
+          <span class="kpi-title">Peak Climatological Anomaly</span>
+          <span class="kpi-icon">📈</span>
+        </div>
+        <div class="kpi-value" id="kpiAnomaly">--</div>
+        <div class="kpi-subtext">Z-Score deviation against 20-year baseline</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Active Threat Advisory</span>
+          <span class="kpi-icon">🛡️</span>
+        </div>
+        <div class="kpi-value" id="kpiThreat">MONITORING</div>
+        <div class="kpi-subtext" id="kpiThreatSub">Evaluating multi-sensor records</div>
+      </div>
+    </section>
+
+    <!-- Workspace Navigation Tabs -->
+    <nav class="tabs-nav">
+      <button class="tab-btn active" data-tab="tabCalendar">
+        <span>📅</span> Burning Activity Calendar
+      </button>
+      <button class="tab-btn" data-tab="tabDiagnostic">
+        <span>⚖️</span> Harmonization Diagnostic (Raw vs Cured)
+      </button>
+      <button class="tab-btn" data-tab="tabMap">
+        <span>🗺️</span> Geospatial Hotspot Explorer
+      </button>
+      <button class="tab-btn" data-tab="tabBriefing">
+        <span>📑</span> Incident Commander Briefing
+      </button>
+    </nav>
+
+    <!-- TAB 1: BURNING ACTIVITY CALENDAR & CLIMATOLOGY -->
+    <section id="tabCalendar" class="tab-content active">
+      <!-- Calendar Heatmap Card -->
+      <div class="panel-card">
+        <div class="panel-title-bar">
+          <div>
+            <h2><span>🔥</span> Burning Activity Calendar (2002–2024)</h2>
+            <div class="panel-subtitle">
+              Multi-decadal matrix mapping Day of Year (DOY 1–365) vs Year. Color intensity indicates Harmonized Fire Intensity Index (HFII).
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <label style="font-size: 0.8rem; color: var(--text-secondary);">Select Target Year:</label>
+            <select id="targetYearSelect" style="background: var(--bg-tertiary); border: 1px solid var(--border-subtle); color: var(--text-primary); padding: 0.25rem 0.5rem; border-radius: var(--radius-sm); font-family: var(--font-mono);"></select>
+          </div>
+        </div>
+
+        <div class="calendar-wrapper">
+          <div class="calendar-canvas-container">
+            <canvas id="calendarCanvas" width="1200" height="420"></canvas>
+          </div>
+        </div>
+
+        <div class="calendar-legend-bar">
+          <span>Low Burning</span>
+          <div class="heat-legend-gradient"></div>
+          <span>Extreme Critical Fire Energy</span>
+        </div>
+      </div>
+
+      <!-- Climatological Baseline Envelope -->
+      <div class="panel-card">
+        <div class="panel-title-bar">
+          <div>
+            <h2><span>📊</span> 20-Year Climatological Baseline & Selected Year Trajectory</h2>
+            <div class="panel-subtitle">
+              Percentile envelopes (10th, Median 50th, 90th, 95th Extreme) derived from 2002–2024 harmonized records compared with the chosen year.
+            </div>
+          </div>
+        </div>
+        <div style="height: 320px;">
+          <canvas id="climatologyChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Critical Burning Periods Table -->
+      <div class="panel-card">
+        <div class="panel-title-bar">
+          <div>
+            <h2><span>🚨</span> Critical Burning Periods & Anomaly Surges</h2>
+            <div class="panel-subtitle">
+              Consecutive days where fire activity exceeded the 90th climatological percentile ($Z \ge 2.0\sigma$).
+            </div>
+          </div>
+        </div>
+        <div class="alert-table-wrap">
+          <table class="alert-table">
+            <thead>
+              <tr>
+                <th>Year</th>
+                <th>Window (DOY)</th>
+                <th>Estimated Calendar Dates</th>
+                <th>Duration</th>
+                <th>Peak HFII</th>
+                <th>Mean Z-Score</th>
+                <th>Threat Status</th>
+              </tr>
+            </thead>
+            <tbody id="criticalPeriodsTableBody">
+              <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Loading critical burning periods...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: HARMONIZATION DIAGNOSTIC (RAW VS HARMONIZED) -->
+    <section id="tabDiagnostic" class="tab-content">
+      <div class="panel-card">
+        <div class="panel-title-bar">
+          <div>
+            <h2><span>⚖️</span> The Sensor Transition Illusion: Resolving the 2012 Artifact</h2>
+            <div class="panel-subtitle">
+              Directly demonstrates why unharmonized records cannot be compared and how Pyro-Harmony's physics & ML model solves it.
+            </div>
+          </div>
+        </div>
+
+        <div class="comparison-grid">
+          <!-- Raw Unharmonized -->
+          <div class="diag-card unharmonized">
+            <h3 style="color: var(--accent-rose); font-size: 0.95rem; margin-bottom: 0.5rem;">
+              ⚠️ Raw Unharmonized Data (MODIS + VIIRS)
+            </h3>
+            <div class="diag-metric-box">
+              <span class="diag-metric-value" id="rawInflationVal" style="color: var(--accent-rose);">+385%</span>
+              <span style="font-size: 0.8rem; color: var(--text-secondary);">Post-2012 False Surge</span>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--text-secondary);">
+              Because VIIRS 375m has a 9× smaller pixel area and detects fires down to 0.5 MW, raw hotspot counts jump dramatically in 2012. Fire managers misinterpret this as a catastrophic climate surge rather than a sensor change.
+            </p>
+            <div class="diag-callout callout-warning" id="diagRawText">
+              Unadjusted historical records are invalid for climate trend analysis.
+            </div>
+          </div>
+
+          <!-- Harmonized Standard -->
+          <div class="diag-card harmonized">
+            <h3 style="color: var(--accent-emerald); font-size: 0.95rem; margin-bottom: 0.5rem;">
+              ✅ Pyro-Harmony Harmonized Record (HFII & ESFP)
+            </h3>
+            <div class="diag-metric-box">
+              <span class="diag-metric-value" id="harmVariationVal" style="color: var(--accent-emerald);">+4.2%</span>
+              <span style="font-size: 0.8rem; color: var(--text-secondary);">Continuous Climatological Variance</span>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--text-secondary);">
+              Grounded in the research of Weng et al. (2017), Gao et al. (2006), and Cheng et al. (2020), our engine applies View Zenith Angle expansion corrections, spatio-temporal clustering, and ML cross-calibration to restore true continuity.
+            </p>
+            <div class="diag-callout callout-success" id="diagHarmText">
+              Sensor-invariant continuity achieved across 2002–2024.
+            </div>
+          </div>
+        </div>
+
+        <!-- Multi-Decadal Comparison Chart -->
+        <div style="height: 340px; margin-top: 1.5rem;">
+          <canvas id="discontinuityChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: GEOSPATIAL MAP EXPLORER -->
+    <section id="tabMap" class="tab-content">
+      <div class="panel-card">
+        <div class="map-control-overlay">
+          <div>
+            <h2 style="font-size: 1rem; font-weight: 700;">Spatial Fire Clustering & Hotspot Distribution</h2>
+            <span style="font-size: 0.75rem; color: var(--text-secondary);" id="mapStatusText">
+              Showing active fire detections and clustered event centroids
+            </span>
+          </div>
+
+          <div class="map-legend">
+            <div class="legend-item">
+              <span class="dot-indicator dot-modis"></span>
+              <span>MODIS (1km)</span>
+            </div>
+            <div class="legend-item">
+              <span class="dot-indicator dot-viirs"></span>
+              <span>VIIRS (375m)</span>
+            </div>
+            <div class="legend-item">
+              <span class="dot-indicator dot-centroid"></span>
+              <span>Harmonized Event</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="map"></div>
+      </div>
+    </section>
+
+    <!-- TAB 4: INCIDENT COMMANDER TACTICAL BRIEFING -->
+    <section id="tabBriefing" class="tab-content">
+      <div class="panel-card">
+        <div class="panel-title-bar">
+          <div>
+            <h2><span>📑</span> Incident Commander Operational Wildfire Briefing</h2>
+            <div class="panel-subtitle">
+              Automated mission intelligence report formatted for emergency operations centers and fire managers.
+            </div>
+          </div>
+          <div style="display: flex; gap: 0.5rem;">
+            <button id="btnCopyBriefing" class="btn btn-outline">Copy Text</button>
+            <button id="btnDownloadBriefing" class="btn btn-primary">Download Markdown</button>
+          </div>
+        </div>
+
+        <div class="briefing-box" id="briefingContent">
+          Loading operational briefing...
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div style="max-width: 1500px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+      <div>
+        <strong>Pyro-Harmony</strong> &bull; 2026 NASA Space Apps Challenge &bull; Grounded in Earth Observation Radiometry & Machine Learning
+      </div>
+      <div>
+        NASA FIRMS Open Streams &bull; Terra/Aqua MODIS &bull; Suomi-NPP/NOAA-20 VIIRS
+      </div>
+    </div>
+  </footer>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- Application Logic -->
+  <script src="/js/app.js"></script>
+</body>
+</html>
