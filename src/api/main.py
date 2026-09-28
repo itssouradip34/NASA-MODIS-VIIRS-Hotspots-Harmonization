@@ -44,8 +44,9 @@ harmonizer = PyroHarmonizer()
 calendar_engine = BurningActivityCalendar()
 anomaly_detector = FireAnomalyDetector()
 
-# In-memory cache for processed regional calendars
+# In-memory cache for processed regional calendars and live streams
 CALENDAR_CACHE: Dict[str, Any] = {}
+LIVE_STREAM_CACHE: Dict[str, Any] = {}
 
 class HarmonizeRequest(BaseModel):
     region_key: str = Field(default="california", description="Preset region key or 'custom'")
@@ -90,7 +91,12 @@ def get_live_stream(
 ) -> Dict[str, Any]:
     """
     Fetches real-time 24h global hotspots from NASA FIRMS and runs real-time harmonization.
+    Caches processed results in-memory for instant switching.
     """
+    cache_key = f"{region_key}_{limit}" if region_key else None
+    if cache_key and cache_key in LIVE_STREAM_CACHE:
+        return LIVE_STREAM_CACHE[cache_key]
+
     bbox = None
     biome = "forest"
     if region_key and region_key in PRESET_REGIONS:
@@ -103,7 +109,10 @@ def get_live_stream(
     try:
         df_raw = firms_loader.get_combined_live_data(bbox=bbox)
         if df_raw.empty:
-            return {"status": "no_detections", "count": 0, "hotspots": []}
+            res = {"status": "no_detections", "count": 0, "hotspots": []}
+            if cache_key:
+                LIVE_STREAM_CACHE[cache_key] = res
+            return res
 
         # Subsample if large
         if len(df_raw) > limit:
@@ -122,7 +131,7 @@ def get_live_stream(
 
         records["acq_date"] = records["acq_date"].dt.strftime("%Y-%m-%d")
 
-        return {
+        res = {
             "status": "success",
             "feed": "NASA FIRMS 24-Hour NRT Stream",
             "total_raw_points": len(df_raw),
@@ -130,6 +139,9 @@ def get_live_stream(
             "total_harmonized_frp_mw": round(float(df_harm["frp_harmonized"].sum()), 1),
             "hotspots": records.to_dict(orient="records")
         }
+        if cache_key:
+            LIVE_STREAM_CACHE[cache_key] = res
+        return res
     except Exception as e:
         logger.error(f"Live stream error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

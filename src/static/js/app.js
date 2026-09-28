@@ -24,7 +24,7 @@ const state = {
   markersLayer: null,
   globe: null,
   globeMode: "3d", // "3d" or "2d"
-  autoRotate: true,
+  autoRotate: false, // Default false so camera stays locked on chosen region
   isSwitchingMode: false,
   charts: {
     climatology: null,
@@ -56,10 +56,12 @@ document.addEventListener("DOMContentLoaded", () => {
   initMap();
   initGlobe();
   setupEventListeners();
-  loadRegionData(state.currentRegion);
+  
+  // Immediately load initial region data
+  onRegionChange(state.currentRegion);
 });
 
-// Setup Tab Switching
+// Setup Tab Switching (Default: Geospatial Hotspot Explorer)
 function initTabs() {
   const tabBtns = document.querySelectorAll(".tab-btn");
   tabBtns.forEach(btn => {
@@ -91,25 +93,22 @@ function initTabs() {
     });
   });
 
-  // Support ?tab= in URL for direct tab loading & screenshots
+  // Default to tabMap when opening localhost / dashboard unless ?tab= is explicitly in URL
   const params = new URLSearchParams(window.location.search);
-  const initialTab = params.get("tab");
-  if (initialTab) {
-    const btn = document.querySelector(`[data-tab="${initialTab}"]`);
-    if (btn) {
-      setTimeout(() => btn.click(), 200);
-    }
+  const initialTab = params.get("tab") || "tabMap";
+  const defaultBtn = document.querySelector(`[data-tab="${initialTab}"]`);
+  if (defaultBtn) {
+    defaultBtn.click();
   }
 }
 
 // Setup Event Listeners
 function setupEventListeners() {
-  // Region Selection
+  // Region Selection - Immediate response
   const regSelect = document.getElementById("regionSelect");
   if (regSelect) {
     regSelect.addEventListener("change", (e) => {
-      state.currentRegion = e.target.value;
-      loadRegionData(state.currentRegion);
+      onRegionChange(e.target.value);
     });
   }
 
@@ -160,6 +159,8 @@ function setupEventListeners() {
   if (btnFly) {
     btnFly.addEventListener("click", () => {
       const reg = REGION_CENTERS[state.currentRegion] || REGION_CENTERS.california;
+      // Stop autoRotate so view stays anchored
+      stopAutoRotate();
       if (state.globeMode === "3d" && state.globe) {
         state.globe.pointOfView({ lat: reg.center[0], lng: reg.center[1], altitude: reg.altitude }, 1200);
       } else if (state.map) {
@@ -171,6 +172,7 @@ function setupEventListeners() {
   const btnReset = document.getElementById("btnResetOrbit");
   if (btnReset) {
     btnReset.addEventListener("click", () => {
+      stopAutoRotate();
       if (state.globeMode === "3d" && state.globe) {
         state.globe.pointOfView({ lat: 20.0, lng: 0.0, altitude: 2.5 }, 1200);
       } else if (state.map) {
@@ -237,6 +239,48 @@ function setupEventListeners() {
   }
 }
 
+// Stop Auto Rotation helper
+function stopAutoRotate() {
+  state.autoRotate = false;
+  if (state.globe && state.globe.controls()) {
+    state.globe.controls().autoRotate = false;
+  }
+  const btnRotate = document.getElementById("btnToggleRotate");
+  if (btnRotate) btnRotate.classList.remove("active");
+}
+
+// Handle Immediate Region Selection
+function onRegionChange(regionKey) {
+  state.currentRegion = regionKey;
+  const regMeta = REGION_CENTERS[regionKey] || REGION_CENTERS.california;
+
+  // 1. Immediately pause auto-rotation so camera firmly locks onto destination
+  stopAutoRotate();
+
+  // 2. Immediately fly 3D Globe or 2D Map camera to the destination (0ms lag)
+  if (state.globeMode === "3d" && state.globe) {
+    state.globe.pointOfView({
+      lat: regMeta.center[0],
+      lng: regMeta.center[1],
+      altitude: regMeta.altitude || 1.5
+    }, 1000);
+  } else if (state.map) {
+    state.map.setView(regMeta.center, regMeta.zoom || 6);
+  }
+
+  // 3. Immediately display tracking status
+  const statusLabel = document.getElementById("mapStatusText");
+  if (statusLabel) {
+    statusLabel.innerText = `🛰️ Tracking satellite detections over ${regMeta.name}...`;
+  }
+
+  // 4. Immediately fetch & render regional hotspots for Globe & Map (parallel)
+  loadRegionalMapHotspots(regionKey);
+
+  // 5. In parallel, update calendar and climatology
+  loadRegionData(regionKey);
+}
+
 // Initialize Leaflet 2D Tactical Map
 function initMap() {
   state.map = L.map("map", {
@@ -251,6 +295,17 @@ function initMap() {
   }).addTo(state.map);
 
   state.markersLayer = L.layerGroup().addTo(state.map);
+
+  // Two-Way Zoom Auto-Switch: When user zooms OUT on 2D map (zoom <= 4), seamlessly return to 3D Globe!
+  state.map.on("zoomend", () => {
+    if (state.globeMode === "2d" && !state.isSwitchingMode) {
+      const currentZoom = state.map.getZoom();
+      if (currentZoom <= 4) {
+        const center = state.map.getCenter();
+        switchTo3DGlobe(center.lat, center.lng, 1.7);
+      }
+    }
+  });
 }
 
 // Initialize WebGL 3D Globe with Globe.gl
@@ -271,33 +326,44 @@ function initGlobe() {
       .atmosphereAltitude(0.2)
       .pointLat("latitude")
       .pointLng("longitude")
-      .pointAltitude(d => Math.min(0.22, 0.02 + ((d.frp || 15) / 1000)))
-      .pointRadius(d => d.is_cluster_centroid ? 0.45 : (d.instrument && d.instrument.includes("MODIS") ? 0.32 : 0.22))
+      .pointAltitude(d => Math.min(0.28, 0.03 + ((d.frp || 15) / 800)))
+      .pointRadius(d => d.is_cluster_centroid ? 0.55 : (d.instrument && d.instrument.includes("MODIS") ? 0.38 : 0.25))
       .pointColor(d => d.is_cluster_centroid ? "#f59e0b" : (d.instrument && d.instrument.includes("MODIS") ? "#06b6d4" : "#ff5722"))
       .pointLabel(d => `
-        <div style="background: rgba(15,23,42,0.92); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 8px 12px; font-family: -apple-system, sans-serif; font-size: 11px; color: #f1f5f9; box-shadow: 0 4px 14px rgba(0,0,0,0.5); min-width: 190px;">
+        <div style="background: rgba(15,23,42,0.95); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 8px 12px; font-family: -apple-system, sans-serif; font-size: 11px; color: #f1f5f9; box-shadow: 0 4px 16px rgba(0,0,0,0.6); min-width: 200px;">
           <div style="font-weight: 700; color: ${d.is_cluster_centroid ? '#f59e0b' : (d.instrument && d.instrument.includes('MODIS') ? '#06b6d4' : '#ff5722')}; font-size: 12px; margin-bottom: 4px;">
             ${d.instrument || 'Satellite Hotspot'} ${d.is_cluster_centroid ? '★ Clustered Centroid' : 'Detection'}
           </div>
           <div><strong>Coordinates:</strong> ${d.latitude.toFixed(4)}, ${d.longitude.toFixed(4)}</div>
           <div><strong>Acquisition:</strong> ${d.acq_date || 'N/A'} ${d.acq_time || ''} UTC</div>
           <div><strong>Raw FRP:</strong> ${d.frp || 0} MW</div>
-          <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 4px 0; padding-top: 4px;">
+          <div style="border-top: 1px solid rgba(255,255,255,0.15); margin: 4px 0; padding-top: 4px;">
             <span style="color: #ea580c; font-weight: 600;">Harmonized FRP: ${d.frp_harmonized || d.frp || 0} MW</span>
           </div>
           <div><strong>ESFP:</strong> ${d.esfp || 1.0} eq &bull; <strong>HFII:</strong> ${d.hfii || 0}</div>
         </div>
       `);
 
-    // Setup globe controls & auto-rotation
+    // Add radar rings for fire cluster centroids if supported
+    if (typeof state.globe.ringsData === "function") {
+      state.globe
+        .ringLat("latitude")
+        .ringLng("longitude")
+        .ringColor(() => (t => `rgba(245, 158, 11, ${Math.max(0, 0.9 - t)})`))
+        .ringMaxRadius(3.5)
+        .ringPropagationSpeed(1.4)
+        .ringRepeatPeriod(1300);
+    }
+
+    // Setup globe controls
     const controls = state.globe.controls();
     if (controls) {
-      controls.autoRotate = true;
+      controls.autoRotate = false; // Start stationary on chosen place
       controls.autoRotateSpeed = 0.5;
       controls.enableDamping = true;
       controls.dampingFactor = 0.05;
 
-      // Dynamic Auto-Switch: When user scrolls in close (altitude < 0.35), seamlessly switch to 2D tactical map!
+      // Two-Way Zoom Auto-Switch: When user zooms in close (altitude < 0.35), seamlessly switch to 2D tactical map!
       controls.addEventListener("change", () => {
         if (state.globeMode === "3d" && !state.isSwitchingMode) {
           const pov = state.globe.pointOfView();
@@ -309,15 +375,17 @@ function initGlobe() {
     }
 
     // Set initial view centered on California
-    state.globe.pointOfView({ lat: 37.2, lng: -119.5, altitude: 1.6 }, 1000);
+    state.globe.pointOfView({ lat: 37.2, lng: -119.5, altitude: 1.5 }, 800);
 
     // Responsive container resize listener
-    window.addEventListener("resize", () => {
+    const handleResize = () => {
       if (state.globe && container.clientWidth > 0 && container.clientHeight > 0) {
         state.globe.width(container.clientWidth);
         state.globe.height(container.clientHeight);
       }
-    });
+    };
+    window.addEventListener("resize", handleResize);
+    setTimeout(handleResize, 150);
 
   } catch (err) {
     console.warn("WebGL 3D Globe initialization notice:", err);
@@ -344,18 +412,18 @@ function switchTo2DMap(lat, lng, zoom = 7) {
     if (state.map) {
       state.map.invalidateSize();
       if (lat !== undefined && lng !== undefined) {
-        state.map.setView([lat, lng], zoom);
+        state.map.setView([lat, lng], Math.max(zoom, 6));
       }
     }
   }
 
   if (statusText) {
-    statusText.innerText = "2D Tactical Map • High-resolution surface basemap & clustered fire perimeters";
+    statusText.innerText = `2D Tactical Map • High-resolution surface basemap & clustered fire perimeters (${state.currentHotspots.length} detections)`;
   }
 
   setTimeout(() => {
     state.isSwitchingMode = false;
-  }, 400);
+  }, 500);
 }
 
 // Switch Mode to 3D Orbital Globe
@@ -388,15 +456,97 @@ function switchTo3DGlobe(lat, lng, altitude = 1.6) {
   }
 
   if (statusText) {
-    statusText.innerText = "3D WebGL Globe • Interactive satellite hotspots & harmonized fire centroids";
+    statusText.innerText = `3D WebGL Globe • Interactive satellite hotspots & harmonized fire centroids (${state.currentHotspots.length} detections)`;
   }
 
   setTimeout(() => {
     state.isSwitchingMode = false;
-  }, 400);
+  }, 500);
 }
 
-// Load Region Data & Calendar
+// Load Regional Hotspots onto 3D Globe & 2D Map (High Priority, Fast Cache)
+async function loadRegionalMapHotspots(regionKey) {
+  try {
+    const res = await fetch(`/api/live-stream?region_key=${regionKey}&limit=800`);
+    const data = await res.json();
+    if (data.status === "success" && data.hotspots && data.hotspots.length > 0) {
+      renderHotspots(data.hotspots, `Active FIRMS Hotspots & Clustered Events`);
+    } else {
+      const statusLabel = document.getElementById("mapStatusText");
+      if (statusLabel) {
+        statusLabel.innerText = "No current active fire hotspots detected in selected region.";
+      }
+      renderHotspots([], "No Hotspots Detected");
+    }
+  } catch (e) {
+    console.warn("Could not load regional map hotspots:", e);
+  }
+}
+
+// Unified Hotspot Renderer for 3D Globe and 2D Leaflet Map
+function renderHotspots(hotspots, statusMsg) {
+  state.currentHotspots = hotspots;
+  
+  // 1. Update 3D Globe points and animated centroid rings
+  if (state.globe) {
+    state.globe.pointsData(hotspots);
+    if (typeof state.globe.ringsData === "function") {
+      const centroids = hotspots.filter(h => h.is_cluster_centroid);
+      state.globe.ringsData(centroids);
+    }
+  }
+
+  // 2. Update 2D Leaflet Map
+  if (state.map && state.markersLayer) {
+    state.markersLayer.clearLayers();
+    hotspots.forEach(pt => {
+      const isCentroid = pt.is_cluster_centroid;
+      const isModis = pt.instrument && pt.instrument.includes("MODIS");
+      
+      let color = isModis ? "#06b6d4" : "#ff5722";
+      let radius = isModis ? 6 : 4;
+      let fillOpacity = 0.65;
+
+      if (isCentroid) {
+        color = "#f59e0b";
+        radius = 8;
+        fillOpacity = 0.9;
+      }
+
+      const circle = L.circleMarker([pt.latitude, pt.longitude], {
+        radius: radius,
+        color: color,
+        fillColor: color,
+        fillOpacity: fillOpacity,
+        weight: isCentroid ? 2 : 1
+      });
+
+      const popupHtml = `
+        <div style="font-family: -apple-system, sans-serif; font-size: 12px; color: #111;">
+          <strong style="color: ${color}; font-size: 13px;">${pt.instrument} Detection</strong><br/>
+          <strong>Coordinates:</strong> ${pt.latitude.toFixed(4)}, ${pt.longitude.toFixed(4)}<br/>
+          <strong>Acquisition:</strong> ${pt.acq_date} ${pt.acq_time} UTC<br/>
+          <strong>Raw FRP:</strong> ${pt.frp} MW<br/>
+          <hr style="margin: 4px 0; border: none; border-top: 1px solid #ddd;"/>
+          <strong style="color: #ea580c;">Harmonized FRP:</strong> ${pt.frp_harmonized} MW<br/>
+          <strong>Equivalent Pixels (ESFP):</strong> ${pt.esfp}<br/>
+          <strong>Harmonized Index (HFII):</strong> ${pt.hfii}<br/>
+          <strong>Cluster Size:</strong> ${pt.cluster_pixel_count} pixels
+        </div>
+      `;
+
+      circle.bindPopup(popupHtml);
+      state.markersLayer.addLayer(circle);
+    });
+  }
+
+  const statusLabel = document.getElementById("mapStatusText");
+  if (statusLabel) {
+    statusLabel.innerText = `${statusMsg} (${hotspots.length} detections plotted)`;
+  }
+}
+
+// Load Region Data & Calendar (Background calculations)
 async function loadRegionData(regionKey) {
   try {
     showLoadingIndicators();
@@ -412,37 +562,24 @@ async function loadRegionData(regionKey) {
 
     // Populate Year dropdown
     const yrSelect = document.getElementById("targetYearSelect");
-    yrSelect.innerHTML = "";
-    data.years.forEach(yr => {
-      const opt = document.createElement("option");
-      opt.value = yr;
-      opt.textContent = yr;
-      if (yr === 2020) opt.selected = true;
-      yrSelect.appendChild(opt);
-    });
-    state.currentYear = parseInt(yrSelect.value);
-
-    // Update geospatial camera to region center
-    const regMeta = REGION_CENTERS[regionKey] || (data.region_info && { center: data.region_info.center, zoom: data.region_info.zoom, altitude: 1.5 });
-    if (regMeta) {
-      const [cLat, cLng] = regMeta.center;
-      if (state.globe && state.globeMode === "3d") {
-        state.globe.pointOfView({ lat: cLat, lng: cLng, altitude: regMeta.altitude || 1.5 }, 1000);
-      }
-      if (state.map) {
-        state.map.setView([cLat, cLng], regMeta.zoom || 6);
-      }
+    if (yrSelect) {
+      yrSelect.innerHTML = "";
+      data.years.forEach(yr => {
+        const opt = document.createElement("option");
+        opt.value = yr;
+        opt.textContent = yr;
+        if (yr === 2020) opt.selected = true;
+        yrSelect.appendChild(opt);
+      });
+      state.currentYear = parseInt(yrSelect.value);
     }
 
     // Render Calendar Canvas & Diagnostic
     renderCalendarHeatmap(data);
     renderDiscontinuityDiagnostic(data);
 
-    // Load Anomalies for initial year
+    // Load Anomalies for target year
     await updateAnomaliesForYear(state.currentYear);
-
-    // Load sample regional hotspots onto both 3D Globe and 2D Map
-    loadRegionalMapHotspots(regionKey);
 
   } catch (err) {
     console.error("Error loading region data:", err);
@@ -789,80 +926,6 @@ function renderDiscontinuityDiagnostic(data) {
   });
 }
 
-// Load Regional Hotspots onto 3D Globe & 2D Map
-async function loadRegionalMapHotspots(regionKey) {
-  try {
-    const res = await fetch(`/api/live-stream?region_key=${regionKey}&limit=600`);
-    const data = await res.json();
-    if (data.status === "success" && data.hotspots && data.hotspots.length > 0) {
-      renderHotspots(data.hotspots, "Regional FIRMS Hotspots & Clustered Events");
-    } else {
-      document.getElementById("mapStatusText").innerText = "No current hotspots in selected region.";
-    }
-  } catch (e) {
-    console.warn("Could not load regional map hotspots:", e);
-  }
-}
-
-// Unified Hotspot Renderer for 3D Globe and 2D Leaflet Map
-function renderHotspots(hotspots, statusMsg) {
-  state.currentHotspots = hotspots;
-  
-  // 1. Update 3D Globe
-  if (state.globe) {
-    state.globe.pointsData(hotspots);
-  }
-
-  // 2. Update 2D Leaflet Map
-  if (state.map && state.markersLayer) {
-    state.markersLayer.clearLayers();
-    hotspots.forEach(pt => {
-      const isCentroid = pt.is_cluster_centroid;
-      const isModis = pt.instrument && pt.instrument.includes("MODIS");
-      
-      let color = isModis ? "#06b6d4" : "#ff5722";
-      let radius = isModis ? 6 : 4;
-      let fillOpacity = 0.65;
-
-      if (isCentroid) {
-        color = "#f59e0b";
-        radius = 8;
-        fillOpacity = 0.9;
-      }
-
-      const circle = L.circleMarker([pt.latitude, pt.longitude], {
-        radius: radius,
-        color: color,
-        fillColor: color,
-        fillOpacity: fillOpacity,
-        weight: isCentroid ? 2 : 1
-      });
-
-      const popupHtml = `
-        <div style="font-family: -apple-system, sans-serif; font-size: 12px; color: #111;">
-          <strong style="color: ${color}; font-size: 13px;">${pt.instrument} Detection</strong><br/>
-          <strong>Coordinates:</strong> ${pt.latitude.toFixed(4)}, ${pt.longitude.toFixed(4)}<br/>
-          <strong>Acquisition:</strong> ${pt.acq_date} ${pt.acq_time} UTC<br/>
-          <strong>Raw FRP:</strong> ${pt.frp} MW<br/>
-          <hr style="margin: 4px 0; border: none; border-top: 1px solid #ddd;"/>
-          <strong style="color: #ea580c;">Harmonized FRP:</strong> ${pt.frp_harmonized} MW<br/>
-          <strong>Equivalent Pixels (ESFP):</strong> ${pt.esfp}<br/>
-          <strong>Harmonized Index (HFII):</strong> ${pt.hfii}<br/>
-          <strong>Cluster Size:</strong> ${pt.cluster_pixel_count} pixels
-        </div>
-      `;
-
-      circle.bindPopup(popupHtml);
-      state.markersLayer.addLayer(circle);
-    });
-  }
-
-  const statusLabel = document.getElementById("mapStatusText");
-  if (statusLabel) {
-    statusLabel.innerText = `${statusMsg} (${hotspots.length} detections plotted)`;
-  }
-}
-
 // Fetch Live 24h Global FIRMS Stream
 async function fetchLiveFIRMS() {
   const btn = document.getElementById("btnLiveFirms");
@@ -881,6 +944,7 @@ async function fetchLiveFIRMS() {
       
       // Update viewpoint to show global density
       if (state.globeMode === "3d" && state.globe) {
+        stopAutoRotate();
         state.globe.pointOfView({ lat: 15.0, lng: 10.0, altitude: 2.2 }, 1200);
       } else if (state.map) {
         state.map.setView([20.0, 0.0], 2);

@@ -97,14 +97,14 @@
 
     <!-- Workspace Navigation Tabs -->
     <nav class="tabs-nav">
-      <button class="tab-btn active" data-tab="tabCalendar">
+      <button class="tab-btn active" data-tab="tabMap">
+        <span>🌐</span> Geospatial Hotspot Explorer
+      </button>
+      <button class="tab-btn" data-tab="tabCalendar">
         <span>📅</span> Burning Activity Calendar
       </button>
       <button class="tab-btn" data-tab="tabDiagnostic">
         <span>⚖️</span> Harmonization Diagnostic (Raw vs Cured)
-      </button>
-      <button class="tab-btn" data-tab="tabMap">
-        <span>🗺️</span> Geospatial Hotspot Explorer
       </button>
       <button class="tab-btn" data-tab="tabBriefing">
         <span>📑</span> Incident Commander Briefing
@@ -112,7 +112,7 @@
     </nav>
 
     <!-- TAB 1: BURNING ACTIVITY CALENDAR & CLIMATOLOGY -->
-    <section id="tabCalendar" class="tab-content active">
+    <section id="tabCalendar" class="tab-content">
       <!-- Calendar Heatmap Card -->
       <div class="panel-card">
         <div class="panel-title-bar">
@@ -243,7 +243,7 @@
     </section>
 
     <!-- TAB 3: GEOSPATIAL 3D GLOBE & 2D TACTICAL MAP EXPLORER -->
-    <section id="tabMap" class="tab-content">
+    <section id="tabMap" class="tab-content active">
       <div class="panel-card">
         <div class="map-control-overlay">
           <div>
