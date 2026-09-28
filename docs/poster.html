@@ -259,14 +259,14 @@
       <!-- Feature 3 -->
       <div class="feature-card">
         <div class="feature-header">
-          <h2><span>🗺️</span> 3. Geospatial Hotspot Clustering & Live Streaming</h2>
-          <span class="science-pill">STARFM (Gao 2006) DBSCAN</span>
+          <h2><span>🌐</span> 3. 3D Orbital Globe & 2D Tactical Geospatial Explorer</h2>
+          <span class="science-pill">WebGL Globe & STARFM DBSCAN</span>
         </div>
         <div class="feature-img-wrap">
-          <img src="images/screenshot_map.png" alt="Geospatial Map Hotspots">
+          <img src="images/screenshot_map.png" alt="3D Orbital Globe & Geospatial Hotspots">
         </div>
         <div class="desc-text">
-          <strong>Innovation:</strong> Integrates an interactive dark operational GIS map displaying multi-sensor detections (cyan for MODIS 1km, fire-red for VIIRS 375m) and clustered physical fire event centroids (amber). Connects directly to live NASA FIRMS feeds for real-time 24-hour global hotspot ingestion and instantaneous on-the-fly harmonization.
+          <strong>Innovation:</strong> Integrates a high-performance 3D WebGL orbital Earth globe featuring planetary night lights, atmospheric Rayleigh scattering, and multi-sensor fire columns (cyan for MODIS 1km, fire-red for VIIRS 375m, amber for clustered centroids). Includes seamless zoom auto-switching: zooming in close automatically transitions from the 3D globe into a 2D high-resolution tactical GIS map. Connects to live NASA FIRMS feeds for instant 24-hour hotspot streaming.
         </div>
         <div class="backend-data-box">
           <strong>Backend Data Used:</strong> Live NASA FIRMS open NRT CSV endpoints (`MODIS_C6_1_Global_24h.csv`, `SUOMI_VIIRS_C2_Global_24h.csv`, `J1_VIIRS_C2_Global_24h.csv`). Spatio-temporal DBSCAN features include projected coordinates ($x, y$ in km) and decimal acquisition hours scaled by 1.5 km spatial / 45-minute temporal tolerances.
@@ -276,17 +276,17 @@
       <!-- Feature 4 -->
       <div class="feature-card">
         <div class="feature-header">
-          <h2><span>📑</span> 4. Incident Commander Wildfire Briefing</h2>
+          <h2><span>📑</span> 4. Executive Incident Commander Operational Briefing</h2>
           <span class="science-pill">Zhang 2020 Biome Stratification</span>
         </div>
         <div class="feature-img-wrap">
-          <img src="images/screenshot_briefing.png" alt="Incident Commander Briefing">
+          <img src="images/screenshot_briefing.png" alt="Executive Incident Commander Briefing">
         </div>
         <div class="desc-text">
-          <strong>Innovation:</strong> Automated intelligence generator producing tactical wildfire briefings for emergency operations centers, land managers, and incident commanders. Flags critical burning periods (consecutive days with $Z \ge 2.0\sigma$), evaluates threat levels, and generates actionable recommendations for early aerial retardant staging and agricultural burn bans.
+          <strong>Innovation:</strong> Automatically compiles decision-grade tactical briefings for emergency operations centers and incident commanders. Formatted as an executive operations sheet displaying active threat badges, climatological anomaly z-scores, critical surge window cards (dates, duration, peak HFII), and actionable directives for aerial tanker staging, with raw dispatch markdown stored in a collapsible background drawer.
         </div>
         <div class="backend-data-box">
-          <strong>Backend Data Used:</strong> Fuel biome stratification (Forest, Agricultural Crop Residue, Savanna, Mediterranean Shrubland) following Zhang et al. (2020), 20-year climatological mean ($\mu$) and standard deviation ($\sigma$) per Day of Year, and consecutive anomaly streak tracking. Exportable to Markdown and clipboard.
+          <strong>Backend Data Used:</strong> Fuel biome stratification (Forest, Agricultural Crop Residue, Savanna, Mediterranean Shrubland) following Zhang et al. (2020), 20-year climatological baseline envelopes ($\mu, \sigma$ per DOY), and consecutive anomaly streak tracking ($Z \ge 2.0\sigma$). Full JSON structured payload and Markdown dispatch logs.
         </div>
       </div>
 

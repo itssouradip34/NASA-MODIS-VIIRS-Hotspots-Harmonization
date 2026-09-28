@@ -3,6 +3,15 @@
  * Grounded in operational Earth Observation science & intuitive user experience.
  */
 
+// Preset Geographic Center Coordinates for 3D Orbit & 2D Tactical View
+const REGION_CENTERS = {
+  california: { center: [37.2, -119.5], zoom: 6, altitude: 1.4, name: "California (Western US Wildfires)" },
+  amazon: { center: [-9.5, -58.5], zoom: 5, altitude: 1.6, name: "Amazon Basin & Pantanal (South America)" },
+  australia: { center: [-34.5, 147.0], zoom: 6, altitude: 1.5, name: "Southeastern Australia (Bushfires)" },
+  punjab_crop: { center: [30.9, 75.8], zoom: 7, altitude: 1.1, name: "Punjab & Haryana (Crop Residue)" },
+  mediterranean: { center: [39.5, 15.0], zoom: 5, altitude: 1.6, name: "Mediterranean Basin (Southern Europe)" }
+};
+
 // Application State
 const state = {
   currentRegion: "california",
@@ -10,8 +19,13 @@ const state = {
   calendarData: null,
   anomalyData: null,
   liveData: null,
+  currentHotspots: [],
   map: null,
   markersLayer: null,
+  globe: null,
+  globeMode: "3d", // "3d" or "2d"
+  autoRotate: true,
+  isSwitchingMode: false,
   charts: {
     climatology: null,
     discontinuity: null
@@ -40,6 +54,7 @@ function getHeatmapColor(value, maxVal) {
 document.addEventListener("DOMContentLoaded", () => {
   initTabs();
   initMap();
+  initGlobe();
   setupEventListeners();
   loadRegionData(state.currentRegion);
 });
@@ -57,16 +72,39 @@ function initTabs() {
       const targetContent = document.getElementById(targetId);
       if (targetContent) {
         targetContent.classList.add("active");
-        if (targetId === "tabMap" && state.map) {
-          setTimeout(() => state.map.invalidateSize(), 150);
+        if (targetId === "tabMap") {
+          setTimeout(() => {
+            if (state.globeMode === "3d" && state.globe) {
+              const cont = document.getElementById("globeContainer");
+              if (cont && cont.clientWidth > 0) {
+                state.globe.width(cont.clientWidth);
+                state.globe.height(cont.clientHeight);
+              }
+            } else if (state.map) {
+              state.map.invalidateSize();
+            }
+          }, 150);
+        } else if (targetId === "tabBriefing") {
+          loadBriefingReport();
         }
       }
     });
   });
+
+  // Support ?tab= in URL for direct tab loading & screenshots
+  const params = new URLSearchParams(window.location.search);
+  const initialTab = params.get("tab");
+  if (initialTab) {
+    const btn = document.querySelector(`[data-tab="${initialTab}"]`);
+    if (btn) {
+      setTimeout(() => btn.click(), 200);
+    }
+  }
 }
 
 // Setup Event Listeners
 function setupEventListeners() {
+  // Region Selection
   const regSelect = document.getElementById("regionSelect");
   if (regSelect) {
     regSelect.addEventListener("change", (e) => {
@@ -75,6 +113,7 @@ function setupEventListeners() {
     });
   }
 
+  // Target Year Selection
   const yrSelect = document.getElementById("targetYearSelect");
   if (yrSelect) {
     yrSelect.addEventListener("change", (e) => {
@@ -83,11 +122,13 @@ function setupEventListeners() {
     });
   }
 
+  // Live NASA FIRMS Stream Button
   const btnLive = document.getElementById("btnLiveFirms");
   if (btnLive) {
     btnLive.addEventListener("click", () => fetchLiveFIRMS());
   }
 
+  // Generate / View Briefing Button in Header
   const btnBriefing = document.getElementById("btnGenerateReport");
   if (btnBriefing) {
     btnBriefing.addEventListener("click", () => {
@@ -97,6 +138,79 @@ function setupEventListeners() {
     });
   }
 
+  // Mode Switcher: 3D Globe vs 2D Tactical Map
+  const btnGlobe = document.getElementById("btnModeGlobe");
+  if (btnGlobe) {
+    btnGlobe.addEventListener("click", () => {
+      const reg = REGION_CENTERS[state.currentRegion] || REGION_CENTERS.california;
+      switchTo3DGlobe(reg.center[0], reg.center[1], reg.altitude);
+    });
+  }
+
+  const btnMap = document.getElementById("btnModeMap");
+  if (btnMap) {
+    btnMap.addEventListener("click", () => {
+      const reg = REGION_CENTERS[state.currentRegion] || REGION_CENTERS.california;
+      switchTo2DMap(reg.center[0], reg.center[1], reg.zoom);
+    });
+  }
+
+  // Quick Action Buttons on 3D Globe
+  const btnFly = document.getElementById("btnFlyRegion");
+  if (btnFly) {
+    btnFly.addEventListener("click", () => {
+      const reg = REGION_CENTERS[state.currentRegion] || REGION_CENTERS.california;
+      if (state.globeMode === "3d" && state.globe) {
+        state.globe.pointOfView({ lat: reg.center[0], lng: reg.center[1], altitude: reg.altitude }, 1200);
+      } else if (state.map) {
+        state.map.flyTo(reg.center, reg.zoom);
+      }
+    });
+  }
+
+  const btnReset = document.getElementById("btnResetOrbit");
+  if (btnReset) {
+    btnReset.addEventListener("click", () => {
+      if (state.globeMode === "3d" && state.globe) {
+        state.globe.pointOfView({ lat: 20.0, lng: 0.0, altitude: 2.5 }, 1200);
+      } else if (state.map) {
+        state.map.flyTo([20.0, 0.0], 2);
+      }
+    });
+  }
+
+  const btnRotate = document.getElementById("btnToggleRotate");
+  if (btnRotate) {
+    btnRotate.addEventListener("click", () => {
+      if (state.globe && state.globe.controls()) {
+        state.autoRotate = !state.autoRotate;
+        state.globe.controls().autoRotate = state.autoRotate;
+        if (state.autoRotate) {
+          btnRotate.classList.add("active");
+        } else {
+          btnRotate.classList.remove("active");
+        }
+      }
+    });
+  }
+
+  // Raw Markdown Drawer Toggle (Incident Briefing)
+  const drawerHeader = document.getElementById("btnToggleRawDrawer");
+  if (drawerHeader) {
+    drawerHeader.addEventListener("click", () => {
+      const box = document.getElementById("briefingContent");
+      const icon = document.getElementById("drawerToggleIcon");
+      if (box.style.display === "none") {
+        box.style.display = "block";
+        if (icon) icon.innerText = "▲";
+      } else {
+        box.style.display = "none";
+        if (icon) icon.innerText = "▼";
+      }
+    });
+  }
+
+  // Copy Briefing Text to Clipboard
   const btnCopy = document.getElementById("btnCopyBriefing");
   if (btnCopy) {
     btnCopy.addEventListener("click", () => {
@@ -108,6 +222,7 @@ function setupEventListeners() {
     });
   }
 
+  // Download Briefing as Markdown File
   const btnDownload = document.getElementById("btnDownloadBriefing");
   if (btnDownload) {
     btnDownload.addEventListener("click", () => {
@@ -122,20 +237,163 @@ function setupEventListeners() {
   }
 }
 
-// Initialize Leaflet Map
+// Initialize Leaflet 2D Tactical Map
 function initMap() {
   state.map = L.map("map", {
     zoomControl: true,
     attributionControl: false
   }).setView([37.2, -119.5], 6);
 
-  // High contrast dark tile provider
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-    maxZoom: 18,
-    subdomains: "abcd"
+  // High contrast dark tile provider without watermark (Esri Dark Gray Canvas)
+  L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
+    maxZoom: 16,
+    attribution: "Esri, HERE, DeLorme, MapmyIndia"
   }).addTo(state.map);
 
   state.markersLayer = L.layerGroup().addTo(state.map);
+}
+
+// Initialize WebGL 3D Globe with Globe.gl
+function initGlobe() {
+  const container = document.getElementById("globeContainer");
+  if (!container || typeof Globe === "undefined") {
+    console.warn("Globe.gl container or library not ready.");
+    return;
+  }
+
+  try {
+    state.globe = Globe()(container)
+      .globeImageUrl("//unpkg.com/three-globe/example/img/earth-night.jpg")
+      .bumpImageUrl("//unpkg.com/three-globe/example/img/earth-topology.png")
+      .backgroundImageUrl("//unpkg.com/three-globe/example/img/night-sky.png")
+      .showAtmosphere(true)
+      .atmosphereColor("#3b82f6")
+      .atmosphereAltitude(0.2)
+      .pointLat("latitude")
+      .pointLng("longitude")
+      .pointAltitude(d => Math.min(0.22, 0.02 + ((d.frp || 15) / 1000)))
+      .pointRadius(d => d.is_cluster_centroid ? 0.45 : (d.instrument && d.instrument.includes("MODIS") ? 0.32 : 0.22))
+      .pointColor(d => d.is_cluster_centroid ? "#f59e0b" : (d.instrument && d.instrument.includes("MODIS") ? "#06b6d4" : "#ff5722"))
+      .pointLabel(d => `
+        <div style="background: rgba(15,23,42,0.92); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 8px 12px; font-family: -apple-system, sans-serif; font-size: 11px; color: #f1f5f9; box-shadow: 0 4px 14px rgba(0,0,0,0.5); min-width: 190px;">
+          <div style="font-weight: 700; color: ${d.is_cluster_centroid ? '#f59e0b' : (d.instrument && d.instrument.includes('MODIS') ? '#06b6d4' : '#ff5722')}; font-size: 12px; margin-bottom: 4px;">
+            ${d.instrument || 'Satellite Hotspot'} ${d.is_cluster_centroid ? '★ Clustered Centroid' : 'Detection'}
+          </div>
+          <div><strong>Coordinates:</strong> ${d.latitude.toFixed(4)}, ${d.longitude.toFixed(4)}</div>
+          <div><strong>Acquisition:</strong> ${d.acq_date || 'N/A'} ${d.acq_time || ''} UTC</div>
+          <div><strong>Raw FRP:</strong> ${d.frp || 0} MW</div>
+          <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 4px 0; padding-top: 4px;">
+            <span style="color: #ea580c; font-weight: 600;">Harmonized FRP: ${d.frp_harmonized || d.frp || 0} MW</span>
+          </div>
+          <div><strong>ESFP:</strong> ${d.esfp || 1.0} eq &bull; <strong>HFII:</strong> ${d.hfii || 0}</div>
+        </div>
+      `);
+
+    // Setup globe controls & auto-rotation
+    const controls = state.globe.controls();
+    if (controls) {
+      controls.autoRotate = true;
+      controls.autoRotateSpeed = 0.5;
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+
+      // Dynamic Auto-Switch: When user scrolls in close (altitude < 0.35), seamlessly switch to 2D tactical map!
+      controls.addEventListener("change", () => {
+        if (state.globeMode === "3d" && !state.isSwitchingMode) {
+          const pov = state.globe.pointOfView();
+          if (pov && pov.altitude < 0.35) {
+            switchTo2DMap(pov.lat, pov.lng, 8);
+          }
+        }
+      });
+    }
+
+    // Set initial view centered on California
+    state.globe.pointOfView({ lat: 37.2, lng: -119.5, altitude: 1.6 }, 1000);
+
+    // Responsive container resize listener
+    window.addEventListener("resize", () => {
+      if (state.globe && container.clientWidth > 0 && container.clientHeight > 0) {
+        state.globe.width(container.clientWidth);
+        state.globe.height(container.clientHeight);
+      }
+    });
+
+  } catch (err) {
+    console.warn("WebGL 3D Globe initialization notice:", err);
+  }
+}
+
+// Switch Mode to 2D Tactical Map
+function switchTo2DMap(lat, lng, zoom = 7) {
+  state.globeMode = "2d";
+  state.isSwitchingMode = true;
+
+  const btnGlobe = document.getElementById("btnModeGlobe");
+  const btnMap = document.getElementById("btnModeMap");
+  const globeCont = document.getElementById("globeContainer");
+  const mapCont = document.getElementById("mapContainer");
+  const statusText = document.getElementById("mapStatusText");
+
+  if (btnGlobe) btnGlobe.classList.remove("active");
+  if (btnMap) btnMap.classList.add("active");
+
+  if (globeCont) globeCont.style.display = "none";
+  if (mapCont) {
+    mapCont.style.display = "block";
+    if (state.map) {
+      state.map.invalidateSize();
+      if (lat !== undefined && lng !== undefined) {
+        state.map.setView([lat, lng], zoom);
+      }
+    }
+  }
+
+  if (statusText) {
+    statusText.innerText = "2D Tactical Map • High-resolution surface basemap & clustered fire perimeters";
+  }
+
+  setTimeout(() => {
+    state.isSwitchingMode = false;
+  }, 400);
+}
+
+// Switch Mode to 3D Orbital Globe
+function switchTo3DGlobe(lat, lng, altitude = 1.6) {
+  state.globeMode = "3d";
+  state.isSwitchingMode = true;
+
+  const btnGlobe = document.getElementById("btnModeGlobe");
+  const btnMap = document.getElementById("btnModeMap");
+  const globeCont = document.getElementById("globeContainer");
+  const mapCont = document.getElementById("mapContainer");
+  const statusText = document.getElementById("mapStatusText");
+
+  if (btnGlobe) btnGlobe.classList.add("active");
+  if (btnMap) btnMap.classList.remove("active");
+
+  if (mapCont) mapCont.style.display = "none";
+  if (globeCont) {
+    globeCont.style.display = "block";
+    if (state.globe) {
+      const cont = document.getElementById("globeContainer");
+      if (cont && cont.clientWidth > 0) {
+        state.globe.width(cont.clientWidth);
+        state.globe.height(cont.clientHeight);
+      }
+      if (lat !== undefined && lng !== undefined) {
+        state.globe.pointOfView({ lat, lng, altitude }, 800);
+      }
+    }
+  }
+
+  if (statusText) {
+    statusText.innerText = "3D WebGL Globe • Interactive satellite hotspots & harmonized fire centroids";
+  }
+
+  setTimeout(() => {
+    state.isSwitchingMode = false;
+  }, 400);
 }
 
 // Load Region Data & Calendar
@@ -164,9 +422,16 @@ async function loadRegionData(regionKey) {
     });
     state.currentYear = parseInt(yrSelect.value);
 
-    // Update map view to region center
-    if (data.region_info && data.region_info.center) {
-      state.map.setView(data.region_info.center, data.region_info.zoom || 6);
+    // Update geospatial camera to region center
+    const regMeta = REGION_CENTERS[regionKey] || (data.region_info && { center: data.region_info.center, zoom: data.region_info.zoom, altitude: 1.5 });
+    if (regMeta) {
+      const [cLat, cLng] = regMeta.center;
+      if (state.globe && state.globeMode === "3d") {
+        state.globe.pointOfView({ lat: cLat, lng: cLng, altitude: regMeta.altitude || 1.5 }, 1000);
+      }
+      if (state.map) {
+        state.map.setView([cLat, cLng], regMeta.zoom || 6);
+      }
     }
 
     // Render Calendar Canvas & Diagnostic
@@ -176,7 +441,7 @@ async function loadRegionData(regionKey) {
     // Load Anomalies for initial year
     await updateAnomaliesForYear(state.currentYear);
 
-    // Load sample hotspots onto map for visualization
+    // Load sample regional hotspots onto both 3D Globe and 2D Map
     loadRegionalMapHotspots(regionKey);
 
   } catch (err) {
@@ -243,7 +508,7 @@ function renderCalendarHeatmap(data) {
     }
   });
 
-  // Canvas Mouse Click/Hover interaction
+  // Canvas Mouse Click interaction
   canvas.onclick = (e) => {
     const rect = canvas.getBoundingClientRect();
     const clickX = (e.clientX - rect.left) * (canvas.width / rect.width);
@@ -287,7 +552,7 @@ async function updateAnomaliesForYear(year) {
     
     const kpiThreat = document.getElementById("kpiThreat");
     kpiThreat.innerText = maxSev;
-    kpiThreat.style.color = (maxSev === "CRITICAL") ? "var(--accent-rose)" : "var(--accent-emerald)";
+    kpiThreat.style.color = (maxSev === "CRITICAL") ? "var(--accent-rose)" : (maxSev === "SEVERE" ? "var(--accent-amber)" : "var(--accent-emerald)");
     document.getElementById("kpiThreatSub").innerText = `${anom.summary.total_critical_periods} critical surge events identified`;
 
     // Render Climatology Envelope Chart
@@ -524,17 +789,13 @@ function renderDiscontinuityDiagnostic(data) {
   });
 }
 
-// Load Regional Hotspots onto Map
+// Load Regional Hotspots onto 3D Globe & 2D Map
 async function loadRegionalMapHotspots(regionKey) {
-  if (!state.map || !state.markersLayer) return;
-  state.markersLayer.clearLayers();
-
-  // Load a subset of real/archive hotspots to visualize clustering
   try {
     const res = await fetch(`/api/live-stream?region_key=${regionKey}&limit=600`);
     const data = await res.json();
     if (data.status === "success" && data.hotspots && data.hotspots.length > 0) {
-      renderHotspotsOnMap(data.hotspots, "Active FIRMS Hotspots & Clustered Events");
+      renderHotspots(data.hotspots, "Regional FIRMS Hotspots & Clustered Events");
     } else {
       document.getElementById("mapStatusText").innerText = "No current hotspots in selected region.";
     }
@@ -543,50 +804,63 @@ async function loadRegionalMapHotspots(regionKey) {
   }
 }
 
-// Render Hotspots onto Leaflet Map
-function renderHotspotsOnMap(hotspots, statusMsg) {
-  state.markersLayer.clearLayers();
-  document.getElementById("mapStatusText").innerText = `${statusMsg} (${hotspots.length} detections)`;
+// Unified Hotspot Renderer for 3D Globe and 2D Leaflet Map
+function renderHotspots(hotspots, statusMsg) {
+  state.currentHotspots = hotspots;
+  
+  // 1. Update 3D Globe
+  if (state.globe) {
+    state.globe.pointsData(hotspots);
+  }
 
-  hotspots.forEach(pt => {
-    const isCentroid = pt.is_cluster_centroid;
-    const isModis = pt.instrument.includes("MODIS");
-    
-    let color = isModis ? "#06b6d4" : "#ff5722";
-    let radius = isModis ? 6 : 4;
-    let fillOpacity = 0.65;
+  // 2. Update 2D Leaflet Map
+  if (state.map && state.markersLayer) {
+    state.markersLayer.clearLayers();
+    hotspots.forEach(pt => {
+      const isCentroid = pt.is_cluster_centroid;
+      const isModis = pt.instrument && pt.instrument.includes("MODIS");
+      
+      let color = isModis ? "#06b6d4" : "#ff5722";
+      let radius = isModis ? 6 : 4;
+      let fillOpacity = 0.65;
 
-    if (isCentroid) {
-      color = "#f59e0b";
-      radius = 8;
-      fillOpacity = 0.9;
-    }
+      if (isCentroid) {
+        color = "#f59e0b";
+        radius = 8;
+        fillOpacity = 0.9;
+      }
 
-    const circle = L.circleMarker([pt.latitude, pt.longitude], {
-      radius: radius,
-      color: color,
-      fillColor: color,
-      fillOpacity: fillOpacity,
-      weight: isCentroid ? 2 : 1
+      const circle = L.circleMarker([pt.latitude, pt.longitude], {
+        radius: radius,
+        color: color,
+        fillColor: color,
+        fillOpacity: fillOpacity,
+        weight: isCentroid ? 2 : 1
+      });
+
+      const popupHtml = `
+        <div style="font-family: -apple-system, sans-serif; font-size: 12px; color: #111;">
+          <strong style="color: ${color}; font-size: 13px;">${pt.instrument} Detection</strong><br/>
+          <strong>Coordinates:</strong> ${pt.latitude.toFixed(4)}, ${pt.longitude.toFixed(4)}<br/>
+          <strong>Acquisition:</strong> ${pt.acq_date} ${pt.acq_time} UTC<br/>
+          <strong>Raw FRP:</strong> ${pt.frp} MW<br/>
+          <hr style="margin: 4px 0; border: none; border-top: 1px solid #ddd;"/>
+          <strong style="color: #ea580c;">Harmonized FRP:</strong> ${pt.frp_harmonized} MW<br/>
+          <strong>Equivalent Pixels (ESFP):</strong> ${pt.esfp}<br/>
+          <strong>Harmonized Index (HFII):</strong> ${pt.hfii}<br/>
+          <strong>Cluster Size:</strong> ${pt.cluster_pixel_count} pixels
+        </div>
+      `;
+
+      circle.bindPopup(popupHtml);
+      state.markersLayer.addLayer(circle);
     });
+  }
 
-    const popupHtml = `
-      <div style="font-family: -apple-system, sans-serif; font-size: 12px; color: #111;">
-        <strong style="color: ${color}; font-size: 13px;">${pt.instrument} Detection</strong><br/>
-        <strong>Coordinates:</strong> ${pt.latitude.toFixed(4)}, ${pt.longitude.toFixed(4)}<br/>
-        <strong>Acquisition:</strong> ${pt.acq_date} ${pt.acq_time} UTC<br/>
-        <strong>Raw FRP:</strong> ${pt.frp} MW<br/>
-        <hr style="margin: 4px 0; border: none; border-top: 1px solid #ddd;"/>
-        <strong style="color: #ea580c;">Harmonized FRP:</strong> ${pt.frp_harmonized} MW<br/>
-        <strong>Equivalent Pixels (ESFP):</strong> ${pt.esfp}<br/>
-        <strong>Harmonized Index (HFII):</strong> ${pt.hfii}<br/>
-        <strong>Cluster Size:</strong> ${pt.cluster_pixel_count} pixels
-      </div>
-    `;
-
-    circle.bindPopup(popupHtml);
-    state.markersLayer.addLayer(circle);
-  });
+  const statusLabel = document.getElementById("mapStatusText");
+  if (statusLabel) {
+    statusLabel.innerText = `${statusMsg} (${hotspots.length} detections plotted)`;
+  }
 }
 
 // Fetch Live 24h Global FIRMS Stream
@@ -596,15 +870,21 @@ async function fetchLiveFIRMS() {
   btn.disabled = true;
 
   try {
-    const res = await fetch("/api/live-stream?limit=1000");
+    const res = await fetch("/api/live-stream?limit=1200");
     const data = await res.json();
     if (data.status === "success" && data.hotspots) {
       // Switch to Map tab
       const mapTab = document.querySelector('[data-tab="tabMap"]');
       if (mapTab) mapTab.click();
 
-      renderHotspotsOnMap(data.hotspots, "Live Global 24h NASA FIRMS Hotspots");
-      state.map.setView([20.0, 0.0], 2); // Global overview
+      renderHotspots(data.hotspots, "Live Global 24h NASA FIRMS Hotspots (Satellite Stream)");
+      
+      // Update viewpoint to show global density
+      if (state.globeMode === "3d" && state.globe) {
+        state.globe.pointOfView({ lat: 15.0, lng: 10.0, altitude: 2.2 }, 1200);
+      } else if (state.map) {
+        state.map.setView([20.0, 0.0], 2);
+      }
     }
   } catch (err) {
     console.error("Failed to fetch live FIRMS stream:", err);
@@ -630,9 +910,93 @@ async function loadBriefingReport() {
       })
     });
     const data = await res.json();
+
+    // 1. Raw markdown in background drawer
     box.innerText = data.content;
+
+    // 2. Render Executive Structured Briefing
+    if (data.structured) {
+      renderExecutiveBriefing(data.structured);
+    }
   } catch (err) {
     box.innerText = "Error generating briefing: " + err.message;
+  }
+}
+
+// Render Executive Briefing UI
+function renderExecutiveBriefing(struct) {
+  // Title & Subtitle
+  const areaTitle = document.getElementById("briefingAreaTitle");
+  if (areaTitle) {
+    areaTitle.innerText = `${struct.area_of_interest} • Tactical Briefing`;
+  }
+
+  const metaSubtitle = document.getElementById("briefingMetaSubtitle");
+  if (metaSubtitle) {
+    metaSubtitle.innerText = `Target Year: ${struct.target_year} • Biome: ${struct.fuel_biome} • Authority: ${struct.operational_authority}`;
+  }
+
+  // Threat Ribbon
+  const badge = document.getElementById("briefingThreatBadge");
+  const threatText = document.getElementById("briefingThreatText");
+  const sev = struct.threat_level || (struct.summary && struct.summary.max_severity) || "MONITORING";
+
+  if (badge) {
+    badge.className = "threat-ribbon " + (sev === "CRITICAL" ? "threat-critical" : (sev === "SEVERE" ? "threat-severe" : "threat-normal"));
+  }
+  if (threatText) {
+    threatText.innerText = (sev === "CRITICAL" ? "CRITICAL SURGE ADVISORY" : (sev === "SEVERE" ? "SEVERE FIRE WEATHER ADVISORY" : "ROUTINE MONITORING LEVEL"));
+  }
+
+  // Meta Cards
+  const surgeCount = document.getElementById("briefingSurgeCount");
+  if (surgeCount) {
+    surgeCount.innerText = `${struct.summary.critical_periods_count || 0} Periods`;
+  }
+
+  const peakZ = document.getElementById("briefingPeakZ");
+  if (peakZ) {
+    const z = struct.summary.peak_z_score || 0;
+    peakZ.innerText = `${z > 0 ? "+" : ""}${z}σ`;
+  }
+
+  const artifactCured = document.getElementById("briefingArtifactCured");
+  if (artifactCured) {
+    const infl = struct.sensor_harmonization.raw_inflation || 0;
+    artifactCured.innerText = `+${infl}% Normalized`;
+  }
+
+  // Critical Surge Cards
+  const surgeGrid = document.getElementById("briefingSurgeCards");
+  if (surgeGrid) {
+    surgeGrid.innerHTML = "";
+    const periods = struct.critical_periods || [];
+    if (periods.length === 0) {
+      surgeGrid.innerHTML = `<div style="grid-column: 1/-1; color: var(--text-muted); font-size: 0.85rem; padding: 1rem; text-align: center;">No critical burning surge periods detected for ${struct.target_year}. Baseline conditions maintained.</div>`;
+    } else {
+      periods.forEach((cp, idx) => {
+        const startDate = doyToDateStr(struct.target_year, cp.start_doy);
+        const endDate = doyToDateStr(struct.target_year, cp.end_doy);
+        const isCrit = cp.mean_z_score >= 3.0;
+
+        const card = document.createElement("div");
+        card.className = "surge-card";
+        card.innerHTML = `
+          <div class="surge-card-header">
+            <span class="surge-dates">Window #${idx + 1}: ${startDate} – ${endDate}</span>
+            <span class="badge-tag ${isCrit ? 'badge-critical' : 'badge-severe'}">${cp.threat_level}</span>
+          </div>
+          <div style="font-size: 0.78rem; color: var(--text-secondary); margin: 2px 0;">
+            DOY ${cp.start_doy} to ${cp.end_doy} &bull; Duration: <strong>${cp.duration_days} days</strong>
+          </div>
+          <div class="surge-stats">
+            <span>Peak: <strong style="color: var(--accent-amber);">${cp.peak_hfii} HFII</strong></span>
+            <span>Anomaly: <strong style="color: var(--accent-rose);">+${cp.mean_z_score}σ</strong></span>
+          </div>
+        `;
+        surgeGrid.appendChild(card);
+      });
+    }
   }
 }
 

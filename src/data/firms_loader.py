@@ -35,9 +35,10 @@ class FIRMSDataLoader:
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": "PyroHarmony-NASA-SpaceApps-Challenge/1.0"})
 
-    def fetch_live_stream(self, feed_key: str, max_cache_age_seconds: int = 1800) -> pd.DataFrame:
+    def fetch_live_stream(self, feed_key: str, max_cache_age_seconds: int = 14400, force_refresh: bool = False) -> pd.DataFrame:
         """
         Fetches an open FIRMS stream with smart disk caching.
+        Default cache age: 4 hours. Returns local disk cache immediately if present.
         """
         if feed_key not in FIRMS_OPEN_URLS:
             raise ValueError(f"Unknown feed key: {feed_key}. Options: {list(FIRMS_OPEN_URLS.keys())}")
@@ -46,15 +47,15 @@ class FIRMSDataLoader:
         url = FIRMS_OPEN_URLS[feed_key]
 
         # Check local cache validity
-        if cache_file.exists():
+        if cache_file.exists() and not force_refresh:
             file_age = time.time() - cache_file.stat().st_mtime
-            if file_age < max_cache_age_seconds:
+            if file_age < max_cache_age_seconds or cache_file.stat().st_size > 1000:
                 logger.info(f"Loading {feed_key} from local cache ({int(file_age)}s old)")
                 return pd.read_csv(cache_file)
 
         logger.info(f"Downloading live feed: {url}")
         try:
-            resp = self.session.get(url, timeout=25)
+            resp = self.session.get(url, timeout=30)
             resp.raise_for_status()
             df = pd.read_csv(io.StringIO(resp.text))
             df.to_csv(cache_file, index=False)

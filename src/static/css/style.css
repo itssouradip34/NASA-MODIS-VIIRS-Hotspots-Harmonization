@@ -511,13 +511,39 @@ body {
   color: #a7f3d0;
 }
 
-/* Leaflet Map Container */
+/* Leaflet Map & 3D Globe Containers */
+.geo-view-wrapper {
+  position: relative;
+  width: 100%;
+  height: 560px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  background: #050811;
+}
+
+#globeContainer {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transition: opacity 0.3s ease;
+}
+
+#mapContainer {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: none;
+  transition: opacity 0.3s ease;
+}
+
 #map {
   width: 100%;
-  height: 540px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-subtle);
-  z-index: 10;
+  height: 100%;
 }
 
 .map-control-overlay {
@@ -526,54 +552,290 @@ body {
   justify-content: space-between;
   margin-bottom: 0.75rem;
   font-size: 0.8rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
-.map-legend {
+/* Mode Switcher Toggle */
+.mode-toggle-group {
+  display: inline-flex;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 2px;
+}
+
+.mode-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: all 0.2s ease;
+}
+
+.mode-toggle-btn:hover {
+  color: var(--text-primary);
+}
+
+.mode-toggle-btn.active {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--accent-amber);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+/* Globe Quick Action Controls */
+.globe-actions-bar {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  z-index: 20;
   display: flex;
+  gap: 0.5rem;
+  background: rgba(11, 15, 25, 0.75);
+  backdrop-filter: blur(8px);
+  padding: 4px 8px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+}
+
+.globe-action-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.globe-action-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.globe-action-btn.active {
+  color: var(--accent-cyan);
+  border-color: rgba(6, 182, 212, 0.3);
+}
+
+/* Executive Incident Briefing Sheet */
+.briefing-sheet {
+  background: linear-gradient(180deg, #111827 0%, #0d121f 100%);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+.briefing-seal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 1rem;
+  flex-wrap: wrap;
   gap: 1rem;
+}
+
+.seal-title-area h2 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #f9fafb;
+}
+
+.seal-subtext {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+.threat-ribbon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: var(--radius-md);
+  font-weight: 800;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.threat-critical {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);
+}
+
+.threat-severe {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.5);
+}
+
+.threat-normal {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.5);
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulseGlow 1.8s infinite;
+}
+
+@keyframes pulseGlow {
+  0% { transform: scale(0.95); opacity: 0.6; }
+  50% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.6; }
+}
+
+.briefing-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.meta-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+}
+
+.meta-card-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.meta-card-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  margin-top: 0.2rem;
+}
+
+.briefing-section h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--accent-amber);
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.recommendation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.recommendation-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-left: 3px solid var(--accent-amber);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.82rem;
+  color: #e5e7eb;
+}
+
+/* Critical Surge Cards */
+.surge-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.75rem;
+}
+
+.surge-card {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.surge-card-header {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
 }
 
-.legend-item {
+.surge-dates {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.surge-stats {
   display: flex;
-  align-items: center;
-  gap: 0.35rem;
+  gap: 0.75rem;
   font-size: 0.75rem;
+  font-family: var(--font-mono);
   color: var(--text-secondary);
 }
 
-.dot-indicator {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
+/* Background Raw Markdown Drawer */
+.raw-markdown-drawer {
+  background: #0a0d14;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  margin-top: 1rem;
 }
 
-.dot-modis {
-  background: var(--accent-cyan);
+.drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
 }
 
-.dot-viirs {
-  background: var(--accent-fire);
+.drawer-header:hover {
+  color: var(--text-primary);
 }
 
-.dot-centroid {
-  background: var(--accent-amber);
-  box-shadow: 0 0 6px var(--accent-amber);
-}
-
-/* Briefing Markdown Box */
 .briefing-box {
   background: #0d1117;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  padding: 1.5rem;
+  padding: 1.25rem;
   font-family: var(--font-mono);
-  font-size: 0.82rem;
-  color: #c9d1d9;
+  font-size: 0.8rem;
+  color: #8b949e;
   white-space: pre-wrap;
-  max-height: 500px;
+  max-height: 250px;
   overflow-y: auto;
-  line-height: 1.6;
+  line-height: 1.5;
+  margin-top: 0.75rem;
 }
 
 /* Footer */
