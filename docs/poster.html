@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Pyro-Harmony: NASA Space Apps 2026 Project Poster</title>
+  <style>
+    @page {
+      size: A3 portrait;
+      margin: 10mm;
+    }
+    :root {
+      --bg: #090d16;
+      --card-bg: #111827;
+      --border: rgba(255, 255, 255, 0.12);
+      --text: #f9fafb;
+      --text-sub: #9ca3af;
+      --accent: #f59e0b;
+      --fire: #ff5722;
+      --cyan: #06b6d4;
+      --emerald: #10b981;
+      --rose: #f43f5e;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.4;
+      padding: 15px;
+    }
+    .poster-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Header Banner */
+    .header-banner {
+      background: linear-gradient(135deg, #1f2937, #111827);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+    .header-titles h1 {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .badge {
+      background: rgba(245, 158, 11, 0.2);
+      color: var(--accent);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .header-titles p {
+      font-size: 14px;
+      color: var(--text-sub);
+      margin-top: 4px;
+    }
+    .meta-box {
+      text-align: right;
+      font-size: 13px;
+      color: var(--text-sub);
+    }
+    .meta-box strong { color: var(--accent); }
+
+    /* Highlights Row */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .kpi-box {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+    }
+    .kpi-title { font-size: 11px; text-transform: uppercase; color: var(--text-sub); font-weight: 600; }
+    .kpi-val { font-size: 22px; font-weight: 800; font-family: monospace; color: var(--text); margin-top: 2px; }
+
+    /* Features Grid */
+    .grid-2x2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .feature-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .feature-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      padding-bottom: 6px;
+    }
+    .feature-header h2 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .feature-img-wrap {
+      width: 100%;
+      height: 230px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: #000;
+    }
+    .feature-img-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: top;
+    }
+    .desc-text {
+      font-size: 12px;
+      color: #e5e7eb;
+      line-height: 1.4;
+    }
+    .backend-data-box {
+      background: rgba(0, 0, 0, 0.4);
+      border-left: 3px solid var(--cyan);
+      border-radius: 4px;
+      padding: 8px 10px;
+      font-size: 11.5px;
+      color: #d1d5db;
+    }
+    .backend-data-box strong {
+      color: var(--cyan);
+    }
+    .science-pill {
+      display: inline-block;
+      font-size: 10.5px;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--emerald);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    /* Footer */
+    .poster-footer {
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--text-sub);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="poster-container">
+
+    <!-- Header Banner -->
+    <header class="header-banner">
+      <div class="header-titles">
+        <h1>
+          🔥 PYRO-HARMONY
+          <span class="badge">NASA Space Apps Challenge 2026</span>
+        </h1>
+        <p>A Unified Fire Intelligence Platform & Burning Activity Calendar Harmonizing MODIS & VIIRS Hotspots</p>
+      </div>
+      <div class="meta-box">
+        <div><strong>Author:</strong> Souradip (itssouradip34)</div>
+        <div><strong>GitHub:</strong> github.com/itssouradip34/NASA-MODIS-VIIRS-Hotspots-Harmonization</div>
+        <div><strong>Grounded in:</strong> 5 Earth Observation Research Papers (2006–2020)</div>
+      </div>
+    </header>
+
+    <!-- Top KPI Barometer -->
+    <div class="kpi-row">
+      <div class="kpi-box" style="border-top: 3px solid var(--fire);">
+        <div class="kpi-title">Harmonized Fire Intensity (HFII)</div>
+        <div class="kpi-val" style="color: var(--fire);">91,029</div>
+        <div style="font-size: 10px; color: var(--text-sub);">Standardized Radiative Energy</div>
+      </div>
+      <div class="kpi-box" style="border-top: 3px solid var(--cyan);">
+        <div class="kpi-title">Equivalent Standard Pixels</div>
+        <div class="kpi-val" style="color: var(--cyan);">7,086</div>
+        <div style="font-size: 10px; color: var(--text-sub);">Nadir-Normalized Footprints (ESFP)</div>
+      </div>
+      <div class="kpi-box" style="border-top: 3px solid var(--rose);">
+        <div class="kpi-title">Peak Climatology Anomaly</div>
+        <div class="kpi-val" style="color: var(--rose);">+4.56σ</div>
+        <div style="font-size: 10px; color: var(--text-sub);">Multi-Decadal Z-Score Surge</div>
+      </div>
+      <div class="kpi-box" style="border-top: 3px solid var(--emerald);">
+        <div class="kpi-title">Model 10-Fold CV Accuracy</div>
+        <div class="kpi-val" style="color: var(--emerald);">R² = 0.975</div>
+        <div style="font-size: 10px; color: var(--text-sub);">FRP RMSE = 2.93 MW</div>
+      </div>
+    </div>
+
+    <!-- 2x2 Features Grid with Screenshots -->
+    <div class="grid-2x2">
+
+      <!-- Feature 1 -->
+      <div class="feature-card">
+        <div class="feature-header">
+          <h2><span>📅</span> 1. Multi-Decadal Burning Activity Calendar</h2>
+          <span class="science-pill">Cheng 2020 & Paramanik 2019</span>
+        </div>
+        <div class="feature-img-wrap">
+          <img src="images/screenshot_calendar.png" alt="Burning Activity Calendar Heatmap">
+        </div>
+        <div class="desc-text">
+          <strong>Innovation:</strong> Transforms over 23 years (2002–2024) of active satellite fire observations into an interactive Day-of-Year (DOY 1–365) heatmap matrix with continuous fire radiative energy ramps. Includes a 20-year climatological baseline envelope (10th, Median 50th, 90th, 95th Extreme percentiles) that identifies seasonal onset, peak burning days, and cessation dates for any area of interest.
+        </div>
+        <div class="backend-data-box">
+          <strong>Backend Data Used:</strong> Historical MODIS C6.1 (`MCD14DL`) and VIIRS C2 (`VNP14IMGTDL` / `VJ114IMGTDL`) active fire records. Ingests latitude/longitude, acquisition timestamps, Day/Night flags, raw Fire Radiative Power (MW), and 20-year daily percentiles calculated via vectorized sliding-window estimators.
+        </div>
+      </div>
+
+      <!-- Feature 2 -->
+      <div class="feature-card">
+        <div class="feature-header">
+          <h2><span>⚖️</span> 2. The "Sensor Transition Illusion" Diagnostic</h2>
+          <span class="science-pill">Weng 2017 & Gao 2006</span>
+        </div>
+        <div class="feature-img-wrap">
+          <img src="images/screenshot_diagnostic.png" alt="Harmonization Diagnostic">
+        </div>
+        <div class="desc-text">
+          <strong>Innovation:</strong> Directly resolves the fundamental challenge problem: unharmonized raw records display an artificial <strong>+385% to +436% surge</strong> after 2012 caused purely by the deployment of VIIRS 375m detectors (which capture sub-pixel fires down to 0.5 MW). Pyro-Harmony normalizes this discrepancy using physics-based footprint scaling and ML cross-calibration to preserve true climate trends.
+        </div>
+        <div class="backend-data-box">
+          <strong>Backend Data Used:</strong> View Zenith Angle (VZA) scan and track parameters, satellite orbital altitudes (705 km Terra/Aqua vs 829 km S-NPP), and collocated Aqua-MODIS & S-NPP VIIRS matchups. Calculates pixel expansion ratios ($A(\theta)$ up to 10× in MODIS vs 2.5× in VIIRS) and Equivalent Standard Fire Pixels (ESFP).
+        </div>
+      </div>
+
+      <!-- Feature 3 -->
+      <div class="feature-card">
+        <div class="feature-header">
+          <h2><span>🗺️</span> 3. Geospatial Hotspot Clustering & Live Streaming</h2>
+          <span class="science-pill">STARFM (Gao 2006) DBSCAN</span>
+        </div>
+        <div class="feature-img-wrap">
+          <img src="images/screenshot_map.png" alt="Geospatial Map Hotspots">
+        </div>
+        <div class="desc-text">
+          <strong>Innovation:</strong> Integrates an interactive dark operational GIS map displaying multi-sensor detections (cyan for MODIS 1km, fire-red for VIIRS 375m) and clustered physical fire event centroids (amber). Connects directly to live NASA FIRMS feeds for real-time 24-hour global hotspot ingestion and instantaneous on-the-fly harmonization.
+        </div>
+        <div class="backend-data-box">
+          <strong>Backend Data Used:</strong> Live NASA FIRMS open NRT CSV endpoints (`MODIS_C6_1_Global_24h.csv`, `SUOMI_VIIRS_C2_Global_24h.csv`, `J1_VIIRS_C2_Global_24h.csv`). Spatio-temporal DBSCAN features include projected coordinates ($x, y$ in km) and decimal acquisition hours scaled by 1.5 km spatial / 45-minute temporal tolerances.
+        </div>
+      </div>
+
+      <!-- Feature 4 -->
+      <div class="feature-card">
+        <div class="feature-header">
+          <h2><span>📑</span> 4. Incident Commander Wildfire Briefing</h2>
+          <span class="science-pill">Zhang 2020 Biome Stratification</span>
+        </div>
+        <div class="feature-img-wrap">
+          <img src="images/screenshot_briefing.png" alt="Incident Commander Briefing">
+        </div>
+        <div class="desc-text">
+          <strong>Innovation:</strong> Automated intelligence generator producing tactical wildfire briefings for emergency operations centers, land managers, and incident commanders. Flags critical burning periods (consecutive days with $Z \ge 2.0\sigma$), evaluates threat levels, and generates actionable recommendations for early aerial retardant staging and agricultural burn bans.
+        </div>
+        <div class="backend-data-box">
+          <strong>Backend Data Used:</strong> Fuel biome stratification (Forest, Agricultural Crop Residue, Savanna, Mediterranean Shrubland) following Zhang et al. (2020), 20-year climatological mean ($\mu$) and standard deviation ($\sigma$) per Day of Year, and consecutive anomaly streak tracking. Exportable to Markdown and clipboard.
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <footer class="poster-footer">
+      <div>
+        <strong>Pyro-Harmony</strong> &bull; 2026 NASA Space Apps Challenge &bull; Grounded in Earth Observation Radiometry & Machine Learning
+      </div>
+      <div>
+        Code Repository: <a href="https://github.com/itssouradip34/NASA-MODIS-VIIRS-Hotspots-Harmonization" style="color: var(--accent);">github.com/itssouradip34/NASA-MODIS-VIIRS-Hotspots-Harmonization</a>
+      </div>
+    </footer>
+
+  </div>
+
+</body>
+</html>
